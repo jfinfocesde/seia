@@ -50,4 +50,57 @@ export async function getSubmissionDetails(submissionId: number) {
       },
     },
   });
+}
+
+export async function getQuestionAnalysis(attemptId: number) {
+  const answers = await prisma.answer.findMany({
+    where: {
+      submission: {
+        attemptId: attemptId,
+      },
+      score: {
+        not: null,
+      },
+    },
+    include: {
+      question: {
+        select: {
+          id: true,
+          text: true,
+          type: true,
+        },
+      },
+    },
+  });
+
+  if (answers.length === 0) {
+    return [];
+  }
+
+  const analysis = new Map<number, { question: { id: number; text: string; type: string; }; scores: number[]; count: number }>();
+
+  answers.forEach(answer => {
+    if (!analysis.has(answer.question.id)) {
+      analysis.set(answer.question.id, {
+        question: answer.question,
+        scores: [],
+        count: 0,
+      });
+    }
+    const questionData = analysis.get(answer.question.id)!;
+    questionData.scores.push(answer.score!);
+    questionData.count++;
+  });
+
+  const results = Array.from(analysis.values()).map(({ question, scores }) => {
+    const averageScore = scores.reduce((sum, score) => sum + score, 0) / scores.length;
+    return {
+      questionId: question.id,
+      text: question.text,
+      type: question.type,
+      averageScore: averageScore,
+    };
+  });
+
+  return results;
 } 

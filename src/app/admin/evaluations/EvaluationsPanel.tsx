@@ -3,9 +3,11 @@ import { useState, useTransition } from 'react';
 import { EvaluationsTable, Evaluation } from './components/EvaluationsTable';
 import { EvaluationForm } from './components/EvaluationForm';
 import { Button } from '@/components/ui/button';
-import { createEvaluacion, updateEvaluacion, deleteEvaluacion } from './actions';
+import { createEvaluacion, updateEvaluacion, deleteEvaluacion, getEvaluacionCompleta } from './actions';
 import { QuestionsPanel } from './components/QuestionsPanel';
+import { ImportEvaluationModal } from './components/ImportEvaluationModal';
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogCancel, AlertDialogAction, AlertDialogFooter } from '@/components/ui/alert-dialog';
+import { Upload } from 'lucide-react';
 
 interface EvaluationsPanelProps {
   initialEvaluations: Evaluation[];
@@ -35,6 +37,7 @@ export function EvaluationsPanel({ initialEvaluations }: EvaluationsPanelProps) 
   const [, startTransition] = useTransition();
   const [questionsEvalId, setQuestionsEvalId] = useState<number | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
 
   const handleCreate = () => {
     setEditing(null);
@@ -76,6 +79,48 @@ export function EvaluationsPanel({ initialEvaluations }: EvaluationsPanelProps) 
     });
   };
 
+  const handleExport = async (evaluationId: number) => {
+    try {
+      const evaluacionCompleta = await getEvaluacionCompleta(evaluationId);
+      if (!evaluacionCompleta) {
+        alert('No se pudo obtener la evaluación');
+        return;
+      }
+
+      // Preparar datos para exportar (sin IDs internos)
+      const exportData = {
+        title: evaluacionCompleta.title,
+        description: evaluacionCompleta.description,
+        helpUrl: evaluacionCompleta.helpUrl,
+        questions: evaluacionCompleta.questions.map(q => ({
+          text: q.text,
+          type: q.type,
+          language: q.language,
+          answer: q.answer,
+        })),
+      };
+
+      // Crear y descargar archivo JSON
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${evaluacionCompleta.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_evaluacion.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error al exportar:', error);
+      alert('Error al exportar la evaluación');
+    }
+  };
+
+  const handleImportSuccess = () => {
+    // Recargar las evaluaciones después de importar
+    window.location.reload();
+  };
+
   return (
     <div>
       {/* Modal de confirmación para eliminar evaluación */}
@@ -97,6 +142,14 @@ export function EvaluationsPanel({ initialEvaluations }: EvaluationsPanelProps) 
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Modal de importación */}
+      <ImportEvaluationModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onImport={handleImportSuccess}
+      />
+
       {questionsEvalId ? (
         <div>
           <Button className="mb-4" variant="outline" onClick={() => setQuestionsEvalId(null)}>
@@ -117,13 +170,20 @@ export function EvaluationsPanel({ initialEvaluations }: EvaluationsPanelProps) 
         <>
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-2xl font-bold">Evaluaciones</h1>
-            <Button onClick={handleCreate}>Crear nueva evaluación</Button>
+            <div className="flex gap-2">
+              <Button onClick={() => setShowImportModal(true)} variant="outline">
+                <Upload className="h-4 w-4 mr-2" />
+                Importar
+              </Button>
+              <Button onClick={handleCreate}>Crear nueva evaluación</Button>
+            </div>
           </div>
           <EvaluationsTable
             evaluations={evaluations}
             onEdit={handleEdit}
             onDelete={handleDelete}
             onQuestions={setQuestionsEvalId}
+            onExport={handleExport}
           />
         </>
       )}

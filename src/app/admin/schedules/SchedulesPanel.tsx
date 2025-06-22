@@ -5,6 +5,7 @@ import { ScheduleForm } from './ScheduleForm';
 import { SchedulesTable } from './SchedulesTable';
 import { Button } from '@/components/ui/button';
 import { SubmissionsPanel } from './SubmissionsPanel';
+import { AttemptStatsPage } from './components/AttemptStatsPage';
 
 interface Attempt {
   id: number;
@@ -26,6 +27,7 @@ export function SchedulesPanel() {
   const [showForm, setShowForm] = useState(false);
   const [editAttempt, setEditAttempt] = useState<Attempt | null>(null);
   const [viewSubmissionsAttemptId, setViewSubmissionsAttemptId] = useState<number | null>(null);
+  const [viewStatsAttemptId, setViewStatsAttemptId] = useState<number | null>(null);
 
   useEffect(() => {
     getAttempts().then((data) => setAttempts(data as Attempt[]));
@@ -78,12 +80,24 @@ export function SchedulesPanel() {
     setViewSubmissionsAttemptId(id);
   };
 
+  const handleStats = (id: number) => {
+    setViewStatsAttemptId(id);
+  };
+
   const handleBackToSchedules = () => {
     setViewSubmissionsAttemptId(null);
+    setViewStatsAttemptId(null);
   };
 
   if (viewSubmissionsAttemptId !== null) {
     return <SubmissionsPanel attemptId={viewSubmissionsAttemptId} onBack={handleBackToSchedules} />;
+  }
+
+  if (viewStatsAttemptId !== null) {
+    const selectedAttempt = attempts.find(a => a.id === viewStatsAttemptId);
+    if (selectedAttempt) {
+      return <AttemptStatsPage attempt={selectedAttempt} onBack={handleBackToSchedules} />;
+    }
   }
 
   return (
@@ -106,7 +120,13 @@ export function SchedulesPanel() {
             <h1 className="text-2xl font-bold">Agendar presentaciones</h1>
             <Button onClick={handleCreate}>Agendar presentación</Button>
           </div>
-          <SchedulesTable attempts={attempts} onEdit={handleEdit} onDelete={handleDelete} onSubmissions={handleSubmissions} />
+          <SchedulesTable 
+            attempts={attempts} 
+            onEdit={handleEdit} 
+            onDelete={handleDelete} 
+            onSubmissions={handleSubmissions}
+            onStats={handleStats}
+          />
         </>
       )}
     </div>

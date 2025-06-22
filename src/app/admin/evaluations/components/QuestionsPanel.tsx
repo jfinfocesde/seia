@@ -27,6 +27,17 @@ function normalizePregunta(p: unknown): Pregunta {
   };
 }
 
+// Función para normalizar el tipo de pregunta
+function normalizeQuestionType(type: string): 'TEXT' | 'CODE' {
+  const normalizedType = type.toLowerCase().trim();
+  return normalizedType === 'code' ? 'CODE' : 'TEXT';
+}
+
+// Función para convertir el tipo de la UI a formato de BD
+function toDatabaseType(type: 'TEXT' | 'CODE'): string {
+  return type.toLowerCase();
+}
+
 export function QuestionsPanel({ evaluationId }: QuestionsPanelProps) {
   const [preguntas, setPreguntas] = useState<Pregunta[]>([]);
   const [showForm, setShowForm] = useState(false);
@@ -51,17 +62,22 @@ export function QuestionsPanel({ evaluationId }: QuestionsPanelProps) {
   };
 
   const handleSave = async (data: { text: string; type: 'TEXT' | 'CODE'; language?: string }) => {
+    console.log('Guardando pregunta con datos:', data);
+    
+    const dbType = toDatabaseType(data.type);
+    console.log('Tipo convertido para BD:', dbType);
+    
     if (editPregunta) {
       await updatePregunta(editPregunta.id, {
         text: data.text,
-        type: data.type,
+        type: dbType,
         language: data.language,
         answer: '', 
       });
     } else {
       await createPregunta(evaluationId, {
         text: data.text,
-        type: data.type,
+        type: dbType,
         language: data.language,
         answer: '',
       });
@@ -94,7 +110,7 @@ export function QuestionsPanel({ evaluationId }: QuestionsPanelProps) {
             initialData={editPregunta ? {
               id: editPregunta.id,
               text: editPregunta.text,
-              type: editPregunta.type === 'code' ? 'CODE' : 'TEXT',
+              type: normalizeQuestionType(editPregunta.type),
               language: editPregunta.language,
             } : undefined}
             onSave={handleSave}
@@ -113,7 +129,7 @@ export function QuestionsPanel({ evaluationId }: QuestionsPanelProps) {
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-2">
                     <span className="font-medium">Pregunta #{idx + 1}</span>
-                    <span className="text-xs px-2 py-1 rounded bg-muted">{p.type === 'code' ? 'Código' : 'Texto'}</span>
+                    <span className="text-xs px-2 py-1 rounded bg-muted">{normalizeQuestionType(p.type) === 'CODE' ? 'Código' : 'Texto'}</span>
                   </div>
                   <div className="flex gap-2">
                     <Button size="sm" variant="secondary" onClick={() => setPreviewPregunta(p)}>Vista previa</Button>

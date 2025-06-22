@@ -26,6 +26,46 @@ export async function deleteEvaluacion(id: number) {
   });
 }
 
+// Función para obtener una evaluación completa con sus preguntas
+export async function getEvaluacionCompleta(id: number) {
+  const evaluacion = await prisma.evaluation.findUnique({
+    where: { id },
+    include: {
+      questions: {
+        orderBy: { createdAt: 'asc' },
+      },
+    },
+  });
+  return evaluacion;
+}
+
+// Función para importar una evaluación completa
+export async function importEvaluacion(data: {
+  title: string;
+  description?: string;
+  helpUrl?: string;
+  questions: Array<{
+    text: string;
+    type: string;
+    language?: string;
+    answer?: string;
+  }>;
+}) {
+  return await prisma.evaluation.create({
+    data: {
+      title: data.title,
+      description: data.description,
+      helpUrl: data.helpUrl,
+      questions: {
+        create: data.questions,
+      },
+    },
+    include: {
+      questions: true,
+    },
+  });
+}
+
 // Preguntas CRUD
 export async function getPreguntasByEvaluacion(evaluationId: number) {
   return await prisma.question.findMany({
