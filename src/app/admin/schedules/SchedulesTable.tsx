@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Copy, Check, BarChart3 } from 'lucide-react';
+import { Copy, Check, BarChart3, FileText, List, Sparkles } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface Attempt {
@@ -25,9 +25,21 @@ interface SchedulesTableProps {
   onDelete: (id: number) => void;
   onSubmissions: (id: number) => void;
   onStats: (id: number) => void;
+  onGenerateReport: (id: number) => void;
+  isGeneratingReport: number | null;
+  onDownloadQuestionsPdf: (id: number) => void;
 }
 
-export function SchedulesTable({ attempts, onEdit, onDelete, onSubmissions, onStats }: SchedulesTableProps) {
+export function SchedulesTable({
+  attempts,
+  onEdit,
+  onDelete,
+  onSubmissions,
+  onStats,
+  onGenerateReport,
+  isGeneratingReport,
+  onDownloadQuestionsPdf,
+}: SchedulesTableProps) {
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   const handleCopy = (code: string) => {
@@ -78,12 +90,41 @@ export function SchedulesTable({ attempts, onEdit, onDelete, onSubmissions, onSt
                   <div className="flex gap-2 justify-end">
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button variant="outline" size="sm" onClick={() => onStats(a.id)}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => onGenerateReport(a.id)}
+                          disabled={a._count.submissions === 0 || isGeneratingReport === a.id}
+                        >
+                          {isGeneratingReport === a.id ? (
+                            <Sparkles className="h-4 w-4 animate-pulse text-yellow-400" />
+                          ) : (
+                            <FileText className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {a._count.submissions === 0 ? <p>No hay envíos para generar un reporte</p> : <p>Generar Reporte IA</p>}
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="outline" size="sm" onClick={() => onStats(a.id)} disabled={a._count.submissions === 0}>
                           <BarChart3 className="h-4 w-4" />
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>Ver estadísticas</p>
+                        {a._count.submissions === 0 ? <p>No hay envíos para ver estadísticas</p> : <p>Ver estadísticas</p>}
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="outline" size="sm" onClick={() => onDownloadQuestionsPdf(a.id)}>
+                          <List className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        Descargar solo preguntas
                       </TooltipContent>
                     </Tooltip>
                     <Button variant="outline" size="sm" onClick={() => onEdit(a)}>
