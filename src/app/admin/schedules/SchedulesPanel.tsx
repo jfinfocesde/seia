@@ -8,7 +8,7 @@ import { SubmissionsPanel } from './SubmissionsPanel';
 import { AttemptStatsPage } from './components/AttemptStatsPage';
 import { generatePdfReport } from '@/lib/pdf-generator';
 import { generateQuestionsPdf } from '@/lib/questions-pdf-generator';
-import { generateRiskPrediction, generateQuestionBiasAnalysis, generateParticipationAnalysis, generatePlagiarismAnalysis, wordMatchSimilarity, generatePersonalizedRecommendations, generateSentimentAnalysis } from '@/lib/gemini-schedule-analysis';
+import { generateRiskPrediction, generateQuestionBiasAnalysis, generateParticipationAnalysis, generatePlagiarismAnalysis, wordMatchSimilarity, generatePersonalizedRecommendations, generateSentimentAnalysis, generateDifficultyHeatmap } from '@/lib/gemini-schedule-analysis';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 
@@ -48,6 +48,7 @@ export function SchedulesPanel() {
     plagiarismCode: false,
     personalized: false,
     sentiment: false,
+    difficultyHeatmap: false,
     tablaAnalisisPregunta: false,
     tablaRanking: false,
     tablaParticipacion: false,
@@ -125,6 +126,7 @@ export function SchedulesPanel() {
     { key: 'plagiarismCode', label: 'Plagio/similitud en preguntas de código' },
     { key: 'personalized', label: 'Recomendaciones personalizadas por estudiante' },
     { key: 'sentiment', label: 'Análisis de Sentimiento en Respuestas Abiertas', description: 'Analiza el tono y sentimiento de las respuestas abiertas para detectar frustración, motivación, etc. Útil para ajustar la dificultad o el acompañamiento emocional en el curso. (Solo aplica a preguntas de texto)' },
+    { key: 'difficultyHeatmap', label: 'Mapa de Calor de Dificultad por Temas', description: 'Visualizar en qué temas o competencias hay más errores o menor rendimiento para enfocar la retroalimentación y la mejora curricular.' },
   ];
 
   // Cambia la selección para que solo una opción Gemini esté activa a la vez
@@ -179,7 +181,7 @@ export function SchedulesPanel() {
       }
 
       // Solo llamar a Gemini para las secciones seleccionadas
-      let riskPrediction, questionBias, participationAnalysis, plagiarismPairsText, plagiarismAnalysisText, plagiarismPairsCode, plagiarismAnalysisCode, personalizedRecommendations, sentimentAnalysis;
+      let riskPrediction, questionBias, participationAnalysis, plagiarismPairsText, plagiarismAnalysisText, plagiarismPairsCode, plagiarismAnalysisCode, personalizedRecommendations, sentimentAnalysis, difficultyHeatmap;
 
       if (sections.risk) {
         const submissions = attempt.submissions.map(s => ({
@@ -286,6 +288,14 @@ export function SchedulesPanel() {
         }
         sentimentAnalysis = await generateSentimentAnalysis(textResponses);
       }
+      if (sections.difficultyHeatmap) {
+        if (questionAnalysis.length > 0) {
+          difficultyHeatmap = await generateDifficultyHeatmap(questionAnalysis.map(q => ({
+            text: q.text,
+            averageScore: q.averageScore,
+          })));
+        }
+      }
 
       // Generar PDF con todas las secciones seleccionadas
       generatePdfReport(
@@ -301,6 +311,7 @@ export function SchedulesPanel() {
         plagiarismAnalysisCode,
         personalizedRecommendations,
         sentimentAnalysis,
+        difficultyHeatmap,
         sections
       );
     } catch (error: unknown) {

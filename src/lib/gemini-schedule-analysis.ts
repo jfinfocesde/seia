@@ -77,6 +77,17 @@ export interface SentimentAnalysisResult {
   }[];
 }
 
+// Resultado del mapa de calor de dificultad
+export interface DifficultyHeatmapResult {
+  summary: string; // Resumen sobre los temas más y menos difíciles.
+  topics: {
+    topic: string; // El tema o competencia identificado.
+    averageScore: number; // La calificación promedio para ese tema.
+    difficulty: 'Fácil' | 'Medio' | 'Difícil' | 'Muy Difícil'; // Nivel de dificultad inferido.
+    feedback: string; // Sugerencia o retroalimentación específica para ese tema.
+  }[];
+}
+
 // Utilidad simple para similitud de palabras (0 a 1)
 export function wordMatchSimilarity(a: string, b: string): number {
   const setA = new Set(a.toLowerCase().split(/\W+/).filter(Boolean));
@@ -507,5 +518,64 @@ Responde ÚNICAMENTE en formato JSON válido, sin ningún texto antes o después
     console.error('Error processing Gemini JSON response:', error);
     console.error('Received text:', text);
     throw new Error('Failed to parse sentiment analysis from Gemini.');
+  }
+}
+
+/**
+ * Genera un mapa de calor de dificultad por temas, infiriendo los temas desde las preguntas.
+ * @param questions - Array de objetos { text, averageScore }
+ * @returns Un resumen y un desglose de dificultad por tema.
+ */
+export async function generateDifficultyHeatmap(
+  questions: { text: string; averageScore: number }[]
+): Promise<DifficultyHeatmapResult> {
+  const API_KEY = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+  if (!API_KEY) throw new Error('API_KEY no configurada para Google Gemini');
+  const genAI = new GoogleGenAI({ apiKey: API_KEY });
+  const model = "gemini-2.0-flash";
+
+  const questionData = questions.map((q, i) =>
+    `Pregunta #${i + 1}: (Calificación promedio: ${q.averageScore.toFixed(1)}/5.0)\nTexto: "${q.text.substring(0, 150)}..."`
+  ).join('\n\n');
+
+  const prompt = `
+Eres un analista curricular experto. Tu tarea es analizar un conjunto de preguntas de una evaluación y sus calificaciones promedio para crear un "mapa de calor de dificultad por temas".
+
+1.  **Infiere los temas o competencias** evaluados en las preguntas. Agrupa preguntas similares bajo un mismo tema (ej. "Funciones en JavaScript", "Conceptos de termodinámica", "Análisis de textos literarios").
+2.  **Calcula la dificultad** de cada tema basándote en el promedio de las calificaciones de las preguntas asociadas.
+3.  **Genera un resumen** que destaque los temas más fáciles y los más difíciles para el grupo.
+4.  **Proporciona retroalimentación** específica para cada tema, sugiriendo áreas de refuerzo.
+
+DATOS DE PREGUNTAS:
+${questionData}
+
+Responde ÚNICAMENTE en formato JSON válido, sin ningún texto antes o después. No incluyas comentarios fuera del JSON.
+{
+  "summary": string,
+  "topics": [
+    {
+      "topic": string,
+      "averageScore": number,
+      "difficulty": "Fácil" | "Medio" | "Difícil" | "Muy Difícil",
+      "feedback": string
+    }
+  ]
+}
+`;
+
+  const response = await genAI.models.generateContent({ model, contents: prompt });
+  const text = response.text || '';
+  console.log('Respuesta de Gemini para mapa de calor:', text);
+  try {
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]) as DifficultyHeatmapResult;
+    } else {
+      throw new Error('No JSON object found in the response.');
+    }
+  } catch (error) {
+    console.error('Error processing Gemini JSON response for heatmap:', error);
+    console.error('Received text:', text);
+    throw new Error('Failed to parse difficulty heatmap from Gemini.');
   }
 } 

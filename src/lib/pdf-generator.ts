@@ -43,6 +43,7 @@ export function generatePdfReport(
   plagiarismAnalysisCode?: PlagiarismAnalysisResult,
   personalizedRecommendations?: PersonalizedRecommendationResult[],
   sentimentAnalysis?: import('./gemini-schedule-analysis').SentimentAnalysisResult,
+  difficultyHeatmap?: import('./gemini-schedule-analysis').DifficultyHeatmapResult,
   selectedSections?: Record<string, boolean>
 ) {
   const doc = new jsPDF();
@@ -317,6 +318,34 @@ export function generatePdfReport(
           d.sentiment,
           d.quote,
           d.explanation,
+        ]),
+        theme: 'striped',
+        headStyles: { fillColor: [41, 128, 185] },
+      });
+      y = (doc as DocWithAutoTable).lastAutoTable.finalY + 10;
+    }
+  }
+
+  // Sección de Mapa de Calor de Dificultad por Temas
+  if (difficultyHeatmap && selectedSections?.difficultyHeatmap) {
+    checkPageBreak(15);
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    y = addText('Mapa de Calor de Dificultad por Temas', 14, y);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    y = addText(difficultyHeatmap.summary, 14, y) + 5;
+    
+    // Tabla de temas
+    if (difficultyHeatmap.topics && difficultyHeatmap.topics.length > 0) {
+      autoTable(doc, {
+        startY: y,
+        head: [['Tema', 'Calificación Promedio', 'Dificultad', 'Feedback']],
+        body: difficultyHeatmap.topics.map(t => [
+          t.topic,
+          t.averageScore.toFixed(1),
+          t.difficulty,
+          t.feedback,
         ]),
         theme: 'striped',
         headStyles: { fillColor: [41, 128, 185] },
