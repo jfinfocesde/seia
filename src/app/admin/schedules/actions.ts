@@ -120,6 +120,8 @@ export async function getDetailedAttemptData(attemptId: number) {
           score: true,
           fraudAttempts: true,
           timeOutsideEval: true,
+          createdAt: true,
+          submittedAt: true,
           answersList: {
             select: {
               answer: true,

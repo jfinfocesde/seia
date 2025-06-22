@@ -44,16 +44,12 @@ export function SchedulesPanel() {
     risk: false,
     bias: false,
     participation: false,
-    plagiarismText: false,
-    plagiarismCode: false,
+    plagiarism: false,
     personalized: false,
     sentiment: false,
     difficultyHeatmap: false,
     tablaAnalisisPregunta: false,
     tablaRanking: false,
-    tablaParticipacion: false,
-    tablaPlagioText: false,
-    tablaPlagioCode: false,
   });
   const [errorModal, setErrorModal] = useState<{ open: boolean; message: string; details?: string }>({ open: false, message: '', details: '' });
   const [selectedGeminiOption, setSelectedGeminiOption] = useState<keyof typeof selectedSections | null>(null);
@@ -122,8 +118,7 @@ export function SchedulesPanel() {
     { key: 'risk', label: 'Predicción de riesgo de bajo rendimiento' },
     { key: 'bias', label: 'Sesgos en preguntas' },
     { key: 'participation', label: 'Participación y compromiso' },
-    { key: 'plagiarismText', label: 'Plagio/similitud en preguntas de texto' },
-    { key: 'plagiarismCode', label: 'Plagio/similitud en preguntas de código' },
+    { key: 'plagiarism', label: 'Análisis de Plagio y Similitud', description: 'Busca similitudes en las respuestas de los estudiantes para las preguntas de tipo texto.' },
     { key: 'personalized', label: 'Recomendaciones personalizadas por estudiante' },
     { key: 'sentiment', label: 'Análisis de Sentimiento en Respuestas Abiertas', description: 'Analiza el tono y sentimiento de las respuestas abiertas para detectar frustración, motivación, etc. Útil para ajustar la dificultad o el acompañamiento emocional en el curso. (Solo aplica a preguntas de texto)' },
     { key: 'difficultyHeatmap', label: 'Mapa de Calor de Dificultad por Temas', description: 'Visualizar en qué temas o competencias hay más errores o menor rendimiento para enfocar la retroalimentación y la mejora curricular.' },
@@ -181,7 +176,7 @@ export function SchedulesPanel() {
       }
 
       // Solo llamar a Gemini para las secciones seleccionadas
-      let riskPrediction, questionBias, participationAnalysis, plagiarismPairsText, plagiarismAnalysisText, plagiarismPairsCode, plagiarismAnalysisCode, personalizedRecommendations, sentimentAnalysis, difficultyHeatmap;
+      let riskPrediction, questionBias, participationAnalysis, plagiarismPairsText, plagiarismAnalysisText, personalizedRecommendations, sentimentAnalysis, difficultyHeatmap;
 
       if (sections.risk) {
         const submissions = attempt.submissions.map(s => ({
@@ -196,17 +191,33 @@ export function SchedulesPanel() {
         questionBias = await generateQuestionBiasAnalysis(questionStats);
       }
       if (sections.participation) {
-        const participationData = attempt.submissions.map(s => ({
-          studentName: `${s.firstName} ${s.lastName}`,
-          score: s.score,
-          timeOutsideEval: s.timeOutsideEval,
-        }));
+        const participationData = attempt.submissions.map(s => {
+          const durationInMinutes = s.submittedAt && s.createdAt 
+            ? (new Date(s.submittedAt).getTime() - new Date(s.createdAt).getTime()) / 60000
+            : 0;
+          return {
+            studentName: `${s.firstName} ${s.lastName}`,
+            score: s.score,
+            durationInMinutes: durationInMinutes,
+          };
+        });
         participationAnalysis = await generateParticipationAnalysis(participationData);
       }
-      if (sections.plagiarismText || sections.plagiarismCode) {
+      if (sections.plagiarism) {
+        // Validar si hay preguntas de texto
+        const textQuestions = questionAnalysis.filter(q => q.type === 'TEXT');
+        if (textQuestions.length === 0) {
+          setErrorModal({
+            open: true,
+            message: 'No hay preguntas de tipo texto para analizar.',
+            details: 'El análisis de plagio solo se puede aplicar si la evaluación contiene preguntas abiertas (de texto).',
+          });
+          setIsGeneratingReport(null);
+          return;
+        }
+
         plagiarismPairsText = [];
-        plagiarismPairsCode = [];
-        for (const q of questionAnalysis) {
+        for (const q of textQuestions) { // Iterar solo sobre preguntas de texto
           const answers = attempt.submissions.map((s: Submission) => {
             const ans = s.answersList?.find((a: SimpleAnswer) => a.question?.text === q.text);
             return {
@@ -221,31 +232,19 @@ export function SchedulesPanel() {
               if (a1.answer.length >= 20 && a2.answer.length >= 20) {
                 const sim = wordMatchSimilarity(a1.answer, a2.answer);
                 if (sim > 0.8) {
-                  if (q.type === 'TEXT' && sections.plagiarismText) {
-                    plagiarismPairsText.push({
-                      studentA: a1.studentName,
-                      studentB: a2.studentName,
-                      questionText: '', // Nunca pasar el texto
-                      similarity: sim,
-                    });
-                  } else if (q.type === 'CODE' && sections.plagiarismCode) {
-                    plagiarismPairsCode.push({
-                      studentA: a1.studentName,
-                      studentB: a2.studentName,
-                      questionText: '', // Nunca pasar el texto
-                      similarity: sim,
-                    });
-                  }
+                  plagiarismPairsText.push({
+                    studentA: a1.studentName,
+                    studentB: a2.studentName,
+                    questionText: '', // Nunca pasar el texto
+                    similarity: sim,
+                  });
                 }
               }
             }
           }
         }
-        if (sections.plagiarismText && plagiarismPairsText.length > 0) {
+        if (plagiarismPairsText.length > 0) {
           plagiarismAnalysisText = await generatePlagiarismAnalysis(plagiarismPairsText);
-        }
-        if (sections.plagiarismCode && plagiarismPairsCode.length > 0) {
-          plagiarismAnalysisCode = await generatePlagiarismAnalysis(plagiarismPairsCode);
         }
       }
       if (sections.personalized) {
@@ -307,8 +306,8 @@ export function SchedulesPanel() {
         participationAnalysis,
         plagiarismPairsText,
         plagiarismAnalysisText,
-        plagiarismPairsCode,
-        plagiarismAnalysisCode,
+        undefined, // plagiarismPairsCode no se usa
+        undefined, // plagiarismAnalysisCode no se usa
         personalizedRecommendations,
         sentimentAnalysis,
         difficultyHeatmap,
@@ -324,11 +323,21 @@ export function SchedulesPanel() {
       } else if (error) {
         details = String(error);
       }
-      setErrorModal({
-        open: true,
-        message: 'Hubo un error al generar el reporte.',
-        details,
-      });
+
+      // Manejo de error específico para cuota de Gemini
+      if (details.includes('429') || details.toUpperCase().includes('RESOURCE_EXHAUSTED')) {
+        setErrorModal({
+          open: true,
+          message: 'Límite de solicitudes alcanzado',
+          details: 'Se ha excedido la cuota de la API de Gemini. Por favor, espera unos minutos antes de generar un nuevo reporte.',
+        });
+      } else {
+        setErrorModal({
+          open: true,
+          message: 'Hubo un error al generar el reporte.',
+          details,
+        });
+      }
     } finally {
       setIsGeneratingReport(null);
     }
@@ -419,18 +428,6 @@ export function SchedulesPanel() {
             <div>
               <Checkbox checked={selectedSections.tablaRanking} onCheckedChange={v => handleSectionChange('tablaRanking', !!v)} id="tablaRanking" />
               <label htmlFor="tablaRanking" className="ml-2">Tabla de ranking de participantes</label>
-            </div>
-            <div>
-              <Checkbox checked={selectedSections.tablaParticipacion} onCheckedChange={v => handleSectionChange('tablaParticipacion', !!v)} id="tablaParticipacion" />
-              <label htmlFor="tablaParticipacion" className="ml-2">Tabla de participación y compromiso</label>
-            </div>
-            <div>
-              <Checkbox checked={selectedSections.tablaPlagioText} onCheckedChange={v => handleSectionChange('tablaPlagioText', !!v)} id="tablaPlagioText" />
-              <label htmlFor="tablaPlagioText" className="ml-2">Tabla de plagio/similitud en texto</label>
-            </div>
-            <div>
-              <Checkbox checked={selectedSections.tablaPlagioCode} onCheckedChange={v => handleSectionChange('tablaPlagioCode', !!v)} id="tablaPlagioCode" />
-              <label htmlFor="tablaPlagioCode" className="ml-2">Tabla de plagio/similitud en código</label>
             </div>
           </div>
           <div className="flex justify-end mt-4">

@@ -138,6 +138,27 @@ export function generatePdfReport(
     y = addText(questionBias.explanation, 20, y) + 5;
   }
 
+  // Análisis de Participación y Compromiso
+  if (participationAnalysis && selectedSections?.participation) {
+    checkPageBreak(15);
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    y = addText('Análisis de Participación y Compromiso', 14, y);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    y = addText('Resumen:', 16, y) + 2;
+    y = addText(participationAnalysis.summary, 20, y) + 2;
+    if (participationAnalysis.lowEngagementStudents.length > 0) {
+      y = addText('Estudiantes con bajo compromiso o dificultades:', 16, y);
+      participationAnalysis.lowEngagementStudents.forEach(name => {
+        y = addText(`- ${name}`, 20, y);
+      });
+    } else {
+      y = addText('No se identificaron estudiantes con bajo compromiso según el análisis.', 16, y);
+    }
+    y += 5;
+  }
+
   // Tabla de análisis por pregunta
   if (selectedSections?.tablaAnalisisPregunta) {
     checkPageBreak(20);
@@ -186,72 +207,32 @@ export function generatePdfReport(
     });
   }
 
-  // Tabla de participación y compromiso
-  if (selectedSections?.tablaParticipacion) {
+  // Análisis de Plagio/Similitud en Texto
+  if (plagiarismPairsText && plagiarismPairsText.length > 0) {
     checkPageBreak(15);
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
-    y = addText('Tabla de participación y compromiso', 14, y);
+    y = addText('Análisis de Plagio y Similitud en Texto', 14, y);
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
-    autoTable(doc, {
-      startY: y,
-      head: [['Estudiante', 'Calificación', 'Tiempo dedicado (min)']],
-      body: attemptData.submissions.map(s => [
-        `${s.firstName} ${s.lastName}`,
-        s.score?.toFixed(1) ?? 'N/A',
-        (s.timeOutsideEval / 60).toFixed(1),
-      ]),
-      theme: 'striped',
-      headStyles: { fillColor: [41, 128, 185] },
-    });
-    y = (doc as DocWithAutoTable).lastAutoTable.finalY + 5;
-  }
 
-  // Tabla de plagio/similitud en texto
-  if (selectedSections?.tablaPlagioText && plagiarismPairsText && plagiarismPairsText.length > 0) {
-    checkPageBreak(15);
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    y = addText('Tabla de plagio/similitud en preguntas de texto', 14, y);
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    autoTable(doc, {
-      startY: y,
-      head: [['Estudiante A', 'Estudiante B', 'Pregunta', 'Similitud']],
-      body: plagiarismPairsText.map((p) => [
-        p.studentA,
-        p.studentB,
-        (() => { const idx = questionAnalysis.findIndex(q => q.text === p.questionText); return idx >= 0 ? `Pregunta ${idx + 1}` : 'N/A'; })(),
-        (p.similarity * 100).toFixed(1) + '%',
-      ]),
-      theme: 'striped',
-      headStyles: { fillColor: [185, 41, 41] },
-    });
-    y = (doc as DocWithAutoTable).lastAutoTable.finalY + 5;
-  }
+    if (plagiarismAnalysisText) {
+      y = addText('Resumen IA:', 16, y) + 2;
+      y = addText(plagiarismAnalysisText.summary, 20, y) + 2;
+    }
 
-  // Tabla de plagio/similitud en código
-  if (selectedSections?.tablaPlagioCode && plagiarismPairsCode && plagiarismPairsCode.length > 0) {
-    checkPageBreak(15);
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    y = addText('Tabla de plagio/similitud en preguntas de código', 14, y);
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    autoTable(doc, {
-      startY: y,
-      head: [['Estudiante A', 'Estudiante B', 'Pregunta', 'Similitud']],
-      body: plagiarismPairsCode.map((p) => [
-        p.studentA,
-        p.studentB,
-        (() => { const idx = questionAnalysis.findIndex(q => q.text === p.questionText); return idx >= 0 ? `Pregunta ${idx + 1}` : 'N/A'; })(),
-        (p.similarity * 100).toFixed(1) + '%',
-      ]),
-      theme: 'striped',
-      headStyles: { fillColor: [41, 41, 185] },
+    // Extraer nombres únicos de estudiantes
+    const studentNames = new Set<string>();
+    plagiarismPairsText.forEach(pair => {
+      studentNames.add(pair.studentA);
+      studentNames.add(pair.studentB);
     });
-    y = (doc as DocWithAutoTable).lastAutoTable.finalY + 5;
+
+    y = addText('Estudiantes con Alta Similitud:', 16, y) + 2;
+    Array.from(studentNames).forEach(name => {
+      y = addText(`- ${name}`, 20, y);
+    });
+    y += 5;
   }
 
   // Nuevas secciones para estudiantes destacados y a mejorar

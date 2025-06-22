@@ -309,7 +309,7 @@ export async function generateQuestionBiasAnalysis(
  * @returns Resumen y lista de estudiantes con baja participación
  */
 export async function generateParticipationAnalysis(
-  participationData: { studentName: string; score: number | null; timeOutsideEval: number }[]
+  participationData: { studentName: string; score: number | null; durationInMinutes: number }[]
 ): Promise<ParticipationAnalysisResult> {
   const API_KEY = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
   if (!API_KEY) throw new Error('API_KEY no configurada para Google Gemini');
@@ -317,19 +317,23 @@ export async function generateParticipationAnalysis(
   const model = "gemini-2.0-flash";
 
   const table = participationData.map(s =>
-    `- ${s.studentName}: Calificación ${s.score?.toFixed(1) ?? 'N/A'}, Tiempo dedicado: ${(s.timeOutsideEval / 60).toFixed(1)} min`
+    `- ${s.studentName}: Calificación ${s.score?.toFixed(1) ?? 'N/A'}, Duración total: ${s.durationInMinutes.toFixed(1)} min`
   ).join('\n');
 
   const prompt = `
-  Eres un analista educativo. Analiza la siguiente tabla de estudiantes, donde se muestra la calificación obtenida y el tiempo dedicado a la evaluación (en minutos). Identifica patrones de participación y compromiso, y señala estudiantes con baja participación y bajo rendimiento (posibles casos de desmotivación o dificultades de acceso). Explica brevemente tus hallazgos.
+  Eres un analista educativo. Analiza la siguiente tabla de estudiantes, donde se muestra la calificación obtenida y la duración total que le tomó al estudiante completar la evaluación (en minutos). Identifica patrones de participación y compromiso.
+  - Un tiempo muy corto puede indicar que el estudiante no se esforzó.
+  - Un tiempo muy largo con baja calificación puede indicar dificultades.
+  - Un tiempo adecuado con buena calificación es ideal.
+  Señala estudiantes con baja participación (ej. tiempo muy corto y baja nota) y explica brevemente tus hallazgos generales.
 
   TABLA DE PARTICIPACIÓN:
   ${table}
 
   Devuelve únicamente en formato JSON:
   {
-    "summary": string, // Resumen del análisis
-    "lowEngagementStudents": string[] // Nombres de estudiantes con baja participación
+    "summary": string, // Resumen del análisis de participación y patrones encontrados.
+    "lowEngagementStudents": string[] // Nombres de estudiantes con indicadores de bajo compromiso o dificultades.
   }
   `;
 
